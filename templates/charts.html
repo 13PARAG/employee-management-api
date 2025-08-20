@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Analytics Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f9f9f9;
+    }
+
+    h2 {
+      margin-top: 40px;
+    }
+
+    canvas {
+      max-width: 700px;
+      margin-bottom: 40px;
+    }
+
+    #loginForm, #logoutBtn {
+      margin-bottom: 20px;
+    }
+
+    #chartsSection {
+      display: none;
+    }
+
+    #loginError {
+      color: red;
+    }
+
+    #logoutBtn {
+      display: none;
+      margin-bottom: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 10px;
+    }
+
+    label {
+      display: inline-block;
+      width: 80px;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Login</h2>
+  <form id="loginForm">
+    <div class="form-group">
+      <label>Username:</label>
+      <input type="text" id="username" required />
+    </div>
+    <div class="form-group">
+      <label>Password:</label>
+      <input type="password" id="password" required />
+    </div>
+    <button type="submit">Login</button>
+    <p id="loginError"></p>
+  </form>
+
+  <button id="logoutBtn">Logout</button>
+
+  <div id="chartsSection">
+    <h2>Employees per Department</h2>
+    <canvas id="deptChart"></canvas>
+
+    <h2>Monthly Attendance</h2>
+    <canvas id="attChart"></canvas>
+  </div>
+
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const loginError = document.getElementById('loginError');
+    const chartsSection = document.getElementById('chartsSection');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    // Login
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const res = await fetch('/api/token/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          localStorage.setItem('access_token', data.access);
+          loginForm.style.display = 'none';
+          loginError.textContent = '';
+          logoutBtn.style.display = 'inline-block';
+          chartsSection.style.display = 'block';
+          loadCharts();
+        } else {
+          loginError.textContent = 'Login failed. Check credentials.';
+        }
+      } catch (error) {
+        loginError.textContent = 'Login error. Check console.';
+        console.error('Login error:', error);
+      }
+    });
+
+    // Logout
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('access_token');
+      location.reload();
+    });
+
+    // Load charts
+    async function loadCharts() {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      const headers = { 'Authorization': 'Bearer ' + token };
+
+      try {
+        // Employees per Department
+        const depRes = await fetch('/api/analytics/employees-per-department/', { headers });
+        const dep = await depRes.json();
+
+        new Chart(document.getElementById("deptChart"), {
+          type: "pie",
+          data: {
+            labels: dep.map(d => d.name),
+            datasets: [{
+              data: dep.map(d => d.total),
+              backgroundColor: ['#ff6384', '#36a2eb', '#cc65fe', '#ffce56']
+            }]
+          }
+        });
+
+        // Monthly Attendance
+        const attRes = await fetch('/api/analytics/monthly-attendance/', { headers });
+        const att = await attRes.json();
+
+        new Chart(document.getElementById("attChart"), {
+          type: "bar",
+          data: {
+            labels: att.labels,
+            datasets: att.datasets
+          },
+          options: {
+            responsive: true,
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+
+      } catch (err) {
+        console.error('Chart loading error:', err);
+        alert('Failed to load chart data.');
+      }
+    }
+
+    // Auto-load if token exists
+    window.addEventListener('DOMContentLoaded', () => {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        loginForm.style.display = 'none';
+        logoutBtn.style.display = 'inline-block';
+        chartsSection.style.display = 'block';
+        loadCharts();
+      }
+    });
+  </script>
+
+</body>
+</html>
+
+
+
